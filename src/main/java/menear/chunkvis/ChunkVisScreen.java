@@ -15,19 +15,18 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.MapColor;
 
 public class ChunkVisScreen extends Screen {
-    private static final int BASE_CELL_SIZE = 12;
-    private int cellSize = BASE_CELL_SIZE;
-    private double panX, panY;
-    private double dragStartX, dragStartY;
-    private double panStartX, panStartY;
+    private static final int TEX_SIZE = 256;
+    private double viewBlockX, viewBlockZ;
+    private double scale;
+    private int dragStartMouseX, dragStartMouseY;
+    private double dragStartViewBlockX, dragStartViewBlockZ;
     private boolean dragging = false;
 
     private DynamicTexture terrainTex;
     private NativeImage terrainImage;
     private ResourceLocation terrainTexId;
-    private int lastViewCx = Integer.MAX_VALUE;
-    private int lastViewCz = Integer.MAX_VALUE;
-    private int lastCellSize = 0;
+    private int lastTexBlockX = Integer.MIN_VALUE;
+    private int lastTexBlockZ = Integer.MIN_VALUE;
     private boolean texInit = false;
 
     protected ChunkVisScreen() {
@@ -36,7 +35,7 @@ public class ChunkVisScreen extends Screen {
 
     private void initTexture() {
         if (texInit) return;
-        terrainImage = new NativeImage(128, 128, false);
+        terrainImage = new NativeImage(TEX_SIZE, TEX_SIZE, false);
         terrainTex = new DynamicTexture(terrainImage);
         Minecraft mc = Minecraft.getInstance();
         TextureManager tm = mc.getTextureManager();
@@ -47,8 +46,12 @@ public class ChunkVisScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        panX = width / 2.0;
-        panY = height / 2.0;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null) {
+            viewBlockX = mc.player.getX();
+            viewBlockZ = mc.player.getZ();
+        }
+        scale = 12.0;
     }
 
     @Override
@@ -59,58 +62,59 @@ public class ChunkVisScreen extends Screen {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
 
-        int visX = (int) (width / (double) cellSize) + 4;
-        int visZ = (int) (height / (double) cellSize) + 4;
-        int midX = visX / 2;
-        int midZ = visZ / 2;
+        double scaleInv = scale;
+        int scrCX = width / 2;
+        int scrCY = height / 2;
+        int texBlocks = TEX_SIZE;
+        int halfTexBlocks = texBlocks / 2;
 
-        int offsetCx = (int) ((panX - width / 2.0) / cellSize);
-        int offsetCz = (int) ((panY - height / 2.0) / cellSize);
+        int texBlockX = (int) Math.floor(viewBlockX / 16) * 16 + 8 - halfTexBlocks;
+        int texBlockZ = (int) Math.floor(viewBlockZ / 16) * 16 + 8 - halfTexBlocks;
 
-        int startCx = -(offsetCx) - midX;
-        int startCz = -(offsetCz) - midZ;
-
-        boolean viewChanged = cellSize != lastCellSize
-            || Math.abs(startCx - lastViewCx) > 2
-            || Math.abs(startCz - lastViewCz) > 2;
-        lastCellSize = cellSize;
-        lastViewCx = startCx;
-        lastViewCz = startCz;
-
-        if (viewChanged) {
-            updateTerrain(mc.level, startCx, startCz, visX, visZ);
+        if (texBlockX != lastTexBlockX || texBlockZ != lastTexBlockZ) {
+            updateTerrain(mc.level, texBlockX, texBlockZ);
+            lastTexBlockX = texBlockX;
+            lastTexBlockZ = texBlockZ;
         }
 
-        graphics.blit(terrainTexId, 0, 0, width, height, 0, 0, 128, 128, 128, 128);
+        int texScrX = (int) (scrCX + (texBlockX - viewBlockX) * scaleInv);
+        int texScrY = (int) (scrCY + (texBlockZ - viewBlockZ) * scaleInv);
+        int texScrSize = (int) (texBlocks * scaleInv);
 
-        for (int dx = 0; dx < visX; dx++) {
-            for (int dz = 0; dz < visZ; dz++) {
-                int cx = startCx + dx;
-                int cz = startCz + dz;
+        graphics.blit(terrainTexId, texScrX, texScrY, texScrSize, texScrSize,
+            0, 0, TEX_SIZE, TEX_SIZE, TEX_SIZE, TEX_SIZE);
 
-                int x = (int) ((cx) * cellSize + panX - startCx * cellSize);
-                int z = (int) ((cz) * cellSize + panY - startCz * cellSize);
+        int startChunkX = (int) Math.floor((viewBlockX - scrCX / scaleInv) / 16);
+        int startChunkZ = (int) Math.floor((viewBlockZ - scrCY / scaleInv) / 16);
+        int endChunkX = (int) Math.ceil((viewBlockX + scrCX / scaleInv) / 16) + 1;
+        int endChunkZ = (int) Math.ceil((viewBlockZ + scrCY / scaleInv) / 16) + 1;
 
-                if (x < -cellSize || x > width + cellSize || z < -cellSize || z > height + cellSize)
-                    continue;
+        for (int cx = startChunkX; cx <= endChunkX; cx++) {
+            for (int cz = startChunkZ; cz <= endChunkZ; cz++) {
+                int x = (int) (scrCX + (cx * 16 - viewBlockX) * scaleInv);
+                int z = (int) (scrCY + (cz * 16 - viewBlockZ) * scaleInv);
+                int w = (int) Math.ceil(16 * scaleInv) + 1;
+
+                if (x + w < 0 || x > width || z + w < 0 || z > height) continue;
 
                 boolean visited = ChunkVisMod.chunkManager.isVisited(mc.level.dimension(), cx, cz);
-                boolean isPlayer = dx == midX + offsetCx && dz == midZ + offsetCz;
+                boolean isPlayer = cx == (int) Math.floor(mc.player.getX() / 16)
+                    && cz == (int) Math.floor(mc.player.getZ() / 16);
 
                 if (visited) {
-                    graphics.fill(x, z, x + cellSize, z + cellSize, 0x4422AA22);
+                    graphics.fill(x, z, x + w, z + w, 0x4422AA22);
                 }
 
                 if (isPlayer) {
-                    int pSize = Math.max(4, cellSize / 2);
-                    graphics.fill(x + cellSize / 2 - pSize / 2, z + cellSize / 2 - pSize / 2,
-                        x + cellSize / 2 + pSize / 2, z + cellSize / 2 + pSize / 2, 0xFF00BFFF);
+                    int ps = Math.max(5, w / 2);
+                    graphics.fill(x + w / 2 - ps / 2, z + w / 2 - ps / 2,
+                        x + w / 2 + ps / 2, z + w / 2 + ps / 2, 0xFF00BFFF);
                 }
 
-                graphics.fill(x, z, x + cellSize, z + 1, 0x66444444);
-                graphics.fill(x, z + cellSize - 1, x + cellSize, z + cellSize, 0x66444444);
-                graphics.fill(x, z, x + 1, z + cellSize, 0x66444444);
-                graphics.fill(x + cellSize - 1, z, x + cellSize, z + cellSize, 0x66444444);
+                graphics.fill(x, z, x + w, z + 1, 0x66444444);
+                graphics.fill(x, z + w - 1, x + w, z + w, 0x66444444);
+                graphics.fill(x, z, x + 1, z + w, 0x66444444);
+                graphics.fill(x + w - 1, z, x + w, z + w, 0x66444444);
             }
         }
 
@@ -119,39 +123,38 @@ public class ChunkVisScreen extends Screen {
         graphics.drawString(mc.font, info, 10, 10, 0xFFFFFF);
     }
 
-    private void updateTerrain(Level level, int startCx, int startCz, int visX, int visZ) {
-        terrainImage.fillRect(0, 0, 128, 128, 0xFF111111);
+    private void updateTerrain(Level level, int blockX, int blockZ) {
+        for (int dx = 0; dx < TEX_SIZE; dx++) {
+            for (int dz = 0; dz < TEX_SIZE; dz++) {
+                int wx = blockX + dx;
+                int wz = blockZ + dz;
 
-        int chunksW = visX;
-        int chunksH = visZ;
-
-        for (int dx = 0; dx < 128; dx++) {
-            for (int dz = 0; dz < 128; dz++) {
-                int cx = startCx + dx * chunksW / 128;
-                int cz = startCz + dz * chunksH / 128;
-
-                if (!level.hasChunk(cx, cz)) continue;
-
-                int wx = cx * 16 + 8;
-                int wz = cz * 16 + 8;
+                if (!level.hasChunk(wx >> 4, wz >> 4)) {
+                    terrainImage.setPixelRGBA(dx, dz, 0xFF111111);
+                    continue;
+                }
 
                 int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, wx, wz) - 1;
-                if (y < level.getMinBuildHeight()) continue;
+                if (y < level.getMinBuildHeight()) {
+                    terrainImage.setPixelRGBA(dx, dz, 0xFF222222);
+                    continue;
+                }
 
                 BlockPos pos = new BlockPos(wx, y, wz);
                 BlockState state = level.getBlockState(pos);
                 MapColor mc = state.getMapColor(level, pos);
-                if (mc == null) continue;
+                if (mc == null) {
+                    terrainImage.setPixelRGBA(dx, dz, 0xFF222222);
+                    continue;
+                }
 
                 int col = mc.col;
                 int r = (col >> 16) & 0xFF;
                 int g = (col >> 8) & 0xFF;
                 int b = col & 0xFF;
-                int abgr = 0xFF000000 | (b << 16) | (g << 8) | r;
-                terrainImage.setPixelRGBA(dx, dz, abgr);
+                terrainImage.setPixelRGBA(dx, dz, 0xFF000000 | (b << 16) | (g << 8) | r);
             }
         }
-
         terrainTex.upload();
     }
 
@@ -160,13 +163,13 @@ public class ChunkVisScreen extends Screen {
         if (button == 0) {
             if (!dragging) {
                 dragging = true;
-                dragStartX = mouseX;
-                dragStartY = mouseY;
-                panStartX = panX;
-                panStartY = panY;
+                dragStartMouseX = (int) mouseX;
+                dragStartMouseY = (int) mouseY;
+                dragStartViewBlockX = viewBlockX;
+                dragStartViewBlockZ = viewBlockZ;
             }
-            panX = panStartX + (mouseX - dragStartX);
-            panY = panStartY + (mouseY - dragStartY);
+            viewBlockX = dragStartViewBlockX - (mouseX - dragStartMouseX) / scale;
+            viewBlockZ = dragStartViewBlockZ - (mouseY - dragStartMouseY) / scale;
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
@@ -180,16 +183,14 @@ public class ChunkVisScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        int prev = cellSize;
+        double prev = scale;
         if (scrollY > 0) {
-            cellSize = Math.min(cellSize + 2, 40);
+            scale = Math.min(scale * 1.2, 80.0);
         } else {
-            cellSize = Math.max(cellSize - 2, 4);
+            scale = Math.max(scale / 1.2, 1.0);
         }
-        if (cellSize != prev) {
-            panX += (mouseX - panX) * (cellSize - prev) / (double) prev;
-            panY += (mouseY - panY) * (cellSize - prev) / (double) prev;
-        }
+        viewBlockX += (mouseX - width / 2.0) * (1.0 / prev - 1.0 / scale);
+        viewBlockZ += (mouseY - height / 2.0) * (1.0 / prev - 1.0 / scale);
         return true;
     }
 

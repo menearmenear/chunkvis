@@ -13,7 +13,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.MapColor;
 
 public class ChunkVisMinimap {
-    private static final int PIXELS_PER_CHUNK = 4;
+    private static final int PIXELS_PER_CHUNK = 16;
     private final int textureSize;
     private final int chunks;
     private DynamicTexture texture;
@@ -21,8 +21,6 @@ public class ChunkVisMinimap {
     private ResourceLocation textureId;
     private int lastChunkX = Integer.MIN_VALUE;
     private int lastChunkZ = Integer.MIN_VALUE;
-    private long lastScanTime = 0;
-    private static final long RESCAN_INTERVAL = 1000;
     private boolean initialized = false;
 
     public ChunkVisMinimap(int gridRadius) {
@@ -48,13 +46,11 @@ public class ChunkVisMinimap {
 
         int pcx = (int) Math.floor(playerX / 16);
         int pcz = (int) Math.floor(playerZ / 16);
-        long now = System.currentTimeMillis();
 
-        if (pcx != lastChunkX || pcz != lastChunkZ || now - lastScanTime > RESCAN_INTERVAL) {
+        if (pcx != lastChunkX || pcz != lastChunkZ) {
             scan(level, pcx, pcz);
             lastChunkX = pcx;
             lastChunkZ = pcz;
-            lastScanTime = now;
         }
 
         graphics.blit(textureId, screenX, screenY, displaySize, displaySize,
@@ -74,42 +70,29 @@ public class ChunkVisMinimap {
                     continue;
                 }
 
-                int blockInChunkX = (px % PIXELS_PER_CHUNK) * 4;
-                int blockInChunkZ = (pz % PIXELS_PER_CHUNK) * 4;
-                int wx = cx * 16 + blockInChunkX;
-                int wz = cz * 16 + blockInChunkZ;
+                int wx = cx * 16 + (px % PIXELS_PER_CHUNK);
+                int wz = cz * 16 + (pz % PIXELS_PER_CHUNK);
 
-                int totalR = 0, totalG = 0, totalB = 0, count = 0;
-                for (int bx = 0; bx < 4; bx++) {
-                    for (int bz = 0; bz < 4; bz++) {
-                        int bw = wx + bx;
-                        int bz2 = wz + bz;
-
-                        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, bw, bz2) - 1;
-                        if (y < level.getMinBuildHeight()) continue;
-
-                        BlockPos pos = new BlockPos(bw, y, bz2);
-                        BlockState state = level.getBlockState(pos);
-                        MapColor mc = state.getMapColor(level, pos);
-                        if (mc == null) continue;
-
-                        int col = mc.col;
-                        totalR += (col >> 16) & 0xFF;
-                        totalG += (col >> 8) & 0xFF;
-                        totalB += col & 0xFF;
-                        count++;
-                    }
-                }
-
-                if (count == 0) {
+                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, wx, wz) - 1;
+                if (y < level.getMinBuildHeight()) {
                     image.setPixelRGBA(px, pz, 0xFF222222);
-                } else {
-                    int r = totalR / count;
-                    int g = totalG / count;
-                    int b = totalB / count;
-                    int abgr = 0xFF000000 | (b << 16) | (g << 8) | r;
-                    image.setPixelRGBA(px, pz, abgr);
+                    continue;
                 }
+
+                BlockPos pos = new BlockPos(wx, y, wz);
+                BlockState state = level.getBlockState(pos);
+                MapColor mc = state.getMapColor(level, pos);
+                if (mc == null) {
+                    image.setPixelRGBA(px, pz, 0xFF222222);
+                    continue;
+                }
+
+                int col = mc.col;
+                int r = (col >> 16) & 0xFF;
+                int g = (col >> 8) & 0xFF;
+                int b = col & 0xFF;
+                int abgr = 0xFF000000 | (b << 16) | (g << 8) | r;
+                image.setPixelRGBA(px, pz, abgr);
             }
         }
 
