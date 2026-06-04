@@ -1,0 +1,29 @@
+{
+    "schemaVersion": 1,
+    "id": "chunkvis",
+    "version": "${version}",
+    "name": "ChunkVis",
+    "description": "Shows visited chunks in a minimap and full-screen map. Perfect for use with Simple World Downloader to track which chunks you've already visited and downloaded.",
+    "authors": [
+        "menear"
+    ],
+    "contact": {
+        "homepage": "https://modrinth.com/user/MeNear",
+        "sources": "https://github.com/menearmenear/chunkvis"
+    },
+    "license": "MIT",
+    "icon": "assets/chunkvis/icon.png",
+    "environment": "client",
+    "entrypoints": {
+        "client": ["chunkvis.ChunkVisMod"]
+    },
+    "depends": {
+        "fabricloader": ">=0.15.0",
+        "minecraft": "~1.21.1",
+        "fabric-api": "*",
+        "java": ">=21"
+    },
+    "suggests": {
+        "simpleworlddownloader": "*"
+    }
+}

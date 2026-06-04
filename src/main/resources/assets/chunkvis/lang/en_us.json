@@ -1,0 +1,9 @@
+{
+    "language": {
+        "en_us": {
+            "key.chunkvis.toggle": "Toggle ChunkVis Overlay",
+            "key.chunkvis.map": "Open ChunkVis Map",
+            "category.chunkvis": "ChunkVis"
+        }
+    }
+}
