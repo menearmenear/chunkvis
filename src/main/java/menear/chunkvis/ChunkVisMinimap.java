@@ -13,6 +13,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.MapColor;
 
 public class ChunkVisMinimap {
+    private static final int MARGIN_BLOCKS = 16;
     private int texPixels = -1;
     private int lastBpTex = -1;
     private DynamicTexture texture;
@@ -42,27 +43,36 @@ public class ChunkVisMinimap {
         int pcx = (int) Math.floor(playerX / 16);
         int pcz = (int) Math.floor(playerZ / 16);
 
-        int nTex, bpTex;
-        if (bpp >= 1) {
-            nTex = mapSize;
-            bpTex = (int) bpp;
-        } else {
-            nTex = (int) Math.ceil(mapSize * bpp);
-            if (nTex < 1) nTex = 1;
-            bpTex = 1;
+        int bpTex = bpp >= 1 ? (int) bpp : 1;
+        int marginPixels = (MARGIN_BLOCKS + bpTex - 1) / bpTex;
+        int nTex = mapSize + 2 * marginPixels;
+
+        if (bpp < 1) {
+            nTex = (int) Math.ceil(mapSize * bpp) + 2 * marginPixels;
         }
 
         ensureTexture(nTex);
 
-        if (pcx != lastChunkX || pcz != lastChunkZ || bpTex != lastBpTex || nTex != texPixels) {
+        if (pcx != lastChunkX || pcz != lastChunkZ || bpTex != lastBpTex) {
             scan(level, pcx, pcz, nTex, bpTex);
             lastChunkX = pcx;
             lastChunkZ = pcz;
             lastBpTex = bpTex;
         }
 
+        double chunkCenterX = pcx * 16 + 8;
+        double chunkCenterZ = pcz * 16 + 8;
+        int shiftX = (int) Math.round((playerX - chunkCenterX) / bpTex);
+        int shiftZ = (int) Math.round((playerZ - chunkCenterZ) / bpTex);
+
+        int srcSize = bpp >= 1 ? mapSize : (int) Math.ceil(mapSize * bpp);
+        int srcU = marginPixels + shiftX;
+        int srcV = marginPixels + shiftZ;
+
+        graphics.enableScissor(screenX, screenY, mapSize, mapSize);
         graphics.blit(textureId, screenX, screenY, mapSize, mapSize,
-            0, 0, nTex, nTex, nTex, nTex);
+            srcU, srcV, srcSize, srcSize, nTex, nTex);
+        graphics.disableScissor();
     }
 
     private void scan(Level level, int pcx, int pcz, int nTex, int bpTex) {

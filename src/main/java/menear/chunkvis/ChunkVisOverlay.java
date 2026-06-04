@@ -38,10 +38,14 @@ public class ChunkVisOverlay implements HudRenderCallback {
         double exactZ = player.getZ();
         int playerChunkX = (int) Math.floor(exactX / 16);
         int playerChunkZ = (int) Math.floor(exactZ / 16);
+        double chunkCenterX = playerChunkX * 16 + 8;
+        double chunkCenterZ = playerChunkZ * 16 + 8;
 
         int mapSize = DISPLAY;
         int startX = PADDING;
         int startY = PADDING;
+        int x0 = startX + mapSize / 2;
+        int z0 = startY + mapSize / 2;
 
         minimap.scanAndRender(graphics, mc.level, exactX, exactZ, startX, startY, mapSize, blocksPerPixel);
 
@@ -55,20 +59,23 @@ public class ChunkVisOverlay implements HudRenderCallback {
             startX + mapSize + 1, startY + mapSize + 1, 0xFFFFFFFF);
 
         double halfBlocks = mapSize * blocksPerPixel / 2.0;
-        int startCX = (int) Math.floor((exactX - halfBlocks) / 16);
-        int endCX = (int) Math.floor((exactX + halfBlocks) / 16);
-        int startCZ = (int) Math.floor((exactZ - halfBlocks) / 16);
-        int endCZ = (int) Math.floor((exactZ + halfBlocks) / 16);
+        int startCX = (int) Math.floor((chunkCenterX - halfBlocks) / 16);
+        int endCX = (int) Math.floor((chunkCenterX + halfBlocks) / 16);
+        int startCZ = (int) Math.floor((chunkCenterZ - halfBlocks) / 16);
+        int endCZ = (int) Math.floor((chunkCenterZ + halfBlocks) / 16);
 
         for (int cx = startCX; cx <= endCX; cx++) {
             for (int cz = startCZ; cz <= endCZ; cz++) {
-                int bx1 = cx * 16;
-                int bz1 = cz * 16;
+                int bx = cx * 16;
+                int bz = cz * 16;
 
-                int x1 = startX + mapSize / 2 + (int) Math.round((bx1 - exactX) / blocksPerPixel);
-                int z1 = startY + mapSize / 2 + (int) Math.round((bz1 - exactZ) / blocksPerPixel);
+                int x1 = x0 + (int) Math.round((bx - chunkCenterX) / blocksPerPixel);
+                int z1 = z0 + (int) Math.round((bz - chunkCenterZ) / blocksPerPixel);
                 int cellW = (int) Math.round(16.0 / blocksPerPixel);
                 if (cellW < 2) cellW = 2;
+
+                if (x1 + cellW < startX || x1 > startX + mapSize
+                    || z1 + cellW < startY || z1 > startY + mapSize) continue;
 
                 boolean visited = ChunkVisMod.chunkManager.isVisited(mc.level.dimension(), cx, cz);
 
@@ -88,19 +95,16 @@ public class ChunkVisOverlay implements HudRenderCallback {
             }
         }
 
-        int cx = startX + mapSize / 2;
-        int cz = startY + mapSize / 2;
-
-        graphics.fill(cx - PLAYER_SIZE, cz - PLAYER_SIZE,
-            cx + PLAYER_SIZE, cz + PLAYER_SIZE, 0xFF00BFFF);
-        graphics.fill(cx - PLAYER_SIZE + 1, cz - PLAYER_SIZE + 1,
-            cx + PLAYER_SIZE - 1, cz + PLAYER_SIZE - 1, 0xFF55DDFF);
+        graphics.fill(x0 - PLAYER_SIZE, z0 - PLAYER_SIZE,
+            x0 + PLAYER_SIZE, z0 + PLAYER_SIZE, 0xFF00BFFF);
+        graphics.fill(x0 - PLAYER_SIZE + 1, z0 - PLAYER_SIZE + 1,
+            x0 + PLAYER_SIZE - 1, z0 + PLAYER_SIZE - 1, 0xFF55DDFF);
 
         float yawRad = (float) Math.toRadians(player.getYRot());
         float dirX = -(float) Math.sin(yawRad) * 5;
         float dirZ = -(float) Math.cos(yawRad) * 5;
-        graphics.fill(cx + (int) dirX - 1, cz + (int) dirZ - 1,
-            cx + (int) dirX + 1, cz + (int) dirZ + 1, 0xFFFFFFAA);
+        graphics.fill(x0 + (int) dirX - 1, z0 + (int) dirZ - 1,
+            x0 + (int) dirX + 1, z0 + (int) dirZ + 1, 0xFFFFFFAA);
 
         String info = String.format("Visited: %d | [U] %s | Zoom: %.1f",
             ChunkVisMod.chunkManager.getVisitedCount(mc.level.dimension()),
