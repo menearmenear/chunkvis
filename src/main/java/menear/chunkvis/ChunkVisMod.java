@@ -1,4 +1,4 @@
-package chunkvis;
+package menear.chunkvis;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;

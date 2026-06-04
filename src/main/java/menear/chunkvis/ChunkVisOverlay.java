@@ -1,4 +1,4 @@
-package chunkvis;
+package menear.chunkvis;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -15,7 +15,7 @@ public class ChunkVisOverlay implements HudRenderCallback {
     private final ChunkVisMinimap minimap;
 
     public ChunkVisOverlay() {
-        this.minimap = new ChunkVisMinimap(GRID_RADIUS * 2 + 1);
+        this.minimap = new ChunkVisMinimap(GRID_RADIUS);
     }
 
     @Override

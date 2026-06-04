@@ -15,7 +15,7 @@
     "icon": "assets/chunkvis/icon.png",
     "environment": "client",
     "entrypoints": {
-        "client": ["chunkvis.ChunkVisMod"]
+        "client": ["menear.chunkvis.ChunkVisMod"]
     },
     "depends": {
         "fabricloader": ">=0.15.0",

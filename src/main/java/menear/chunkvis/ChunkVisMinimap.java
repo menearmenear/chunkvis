@@ -1,4 +1,4 @@
-package chunkvis;
+package menear.chunkvis;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
@@ -17,8 +17,10 @@ public class ChunkVisMinimap {
     private DynamicTexture texture;
     private NativeImage image;
     private ResourceLocation textureId;
-    private int lastBlockX = Integer.MIN_VALUE;
-    private int lastBlockZ = Integer.MIN_VALUE;
+    private int lastChunkX = Integer.MIN_VALUE;
+    private int lastChunkZ = Integer.MIN_VALUE;
+    private long lastScanTime = 0;
+    private static final long RESCAN_INTERVAL = 500;
     private boolean initialized = false;
 
     public ChunkVisMinimap(int gridRadius) {
@@ -41,28 +43,33 @@ public class ChunkVisMinimap {
                               int displaySize, int cellPixels) {
         ensureTexture();
 
-        int px = (int) Math.floor(playerX);
-        int pz = (int) Math.floor(playerZ);
+        int playerChunkX = (int) Math.floor(playerX / 16);
+        int playerChunkZ = (int) Math.floor(playerZ / 16);
+        long now = System.currentTimeMillis();
 
-        if (Math.abs(px - lastBlockX) >= 8 || Math.abs(pz - lastBlockZ) >= 8) {
-            scan(level, px, pz);
-            lastBlockX = px;
-            lastBlockZ = pz;
+        boolean moved = playerChunkX != lastChunkX || playerChunkZ != lastChunkZ;
+        boolean timedOut = now - lastScanTime > RESCAN_INTERVAL;
+
+        if (moved || timedOut) {
+            scan(level, playerChunkX, playerChunkZ);
+            lastChunkX = playerChunkX;
+            lastChunkZ = playerChunkZ;
+            lastScanTime = now;
         }
 
-        graphics.blit(textureId, screenX, screenY, 0, 0,
-            displaySize, displaySize, pixelSize, pixelSize);
+        graphics.blit(textureId, screenX, screenY, displaySize, displaySize,
+            0, 0, pixelSize, pixelSize, pixelSize, pixelSize);
     }
 
-    private void scan(Level level, int centerX, int centerZ) {
-        int halfBlocks = (pixelSize / 2) * 16;
+    private void scan(Level level, int playerChunkX, int playerChunkZ) {
+        int radius = pixelSize / 2;
 
         for (int dx = 0; dx < pixelSize; dx++) {
             for (int dz = 0; dz < pixelSize; dz++) {
-                int wx = centerX - halfBlocks + dx * 16 + 8;
-                int wz = centerZ - halfBlocks + dz * 16 + 8;
+                int cx = playerChunkX - radius + dx;
+                int cz = playerChunkZ - radius + dz;
 
-                if (!level.hasChunk(wx >> 4, wz >> 4)) {
+                if (!level.hasChunk(cx, cz)) {
                     image.setPixelRGBA(dx, dz, 0xFF111111);
                     continue;
                 }
@@ -71,13 +78,13 @@ public class ChunkVisMinimap {
 
                 for (int bx = 0; bx < 16; bx += 4) {
                     for (int bz = 0; bz < 16; bz += 4) {
-                        int bwx = wx - 8 + bx;
-                        int bwz = wz - 8 + bz;
+                        int wx = cx * 16 + bx;
+                        int wz = cz * 16 + bz;
 
-                        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, bwx, bwz) - 1;
+                        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, wx, wz) - 1;
                         if (y < level.getMinBuildHeight()) continue;
 
-                        BlockPos pos = new BlockPos(bwx, y, bwz);
+                        BlockPos pos = new BlockPos(wx, y, wz);
                         BlockState state = level.getBlockState(pos);
                         MapColor mc = state.getMapColor(level, pos);
                         if (mc == null) continue;
