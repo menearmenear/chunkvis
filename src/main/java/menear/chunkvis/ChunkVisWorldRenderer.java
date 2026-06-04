@@ -6,7 +6,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
@@ -26,12 +25,17 @@ public class ChunkVisWorldRenderer {
             int playerChunkZ = (int) Math.floor(mc.player.getZ() / 16);
             int renderDist = Math.min(mc.options.getEffectiveRenderDistance(), 12);
 
-            double yLevel = Math.floor(mc.player.getY() - 2);
-            yLevel = Math.max(-64, Math.min(yLevel, 320));
+            double yLevel = Math.max(-64, mc.player.getY() - 50);
 
             poseStack.pushPose();
             poseStack.translate(-camPos.x, -camPos.y, -camPos.z);
             Matrix4f matrix = poseStack.last().pose();
+
+            RenderSystem.setShader(GameRenderer::getPositionColorShader);
+            RenderSystem.enableDepthTest();
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.disableCull();
 
             Tesselator tesselator = Tesselator.getInstance();
 
@@ -49,24 +53,20 @@ public class ChunkVisWorldRenderer {
 
                     int r, g, b, a;
                     if (dx == 0 && dz == 0) {
-                        r = 0; g = 150; b = 255; a = 50;
+                        r = 0; g = 150; b = 255; a = 60;
                     } else if (ChunkVisMod.chunkManager.isVisited(mc.level.dimension(), cx, cz)) {
-                        r = 0; g = 200; b = 0; a = 35;
+                        r = 100; g = 80; b = 220; a = 50;
                     } else {
-                        r = 60; g = 60; b = 60; a = 25;
+                        r = 80; g = 40; b = 40; a = 30;
                     }
 
-                    buffer.addVertex(matrix, x1, (float) yLevel + 0.05f, z1).setColor(r, g, b, a);
-                    buffer.addVertex(matrix, x2, (float) yLevel + 0.05f, z1).setColor(r, g, b, a);
-                    buffer.addVertex(matrix, x2, (float) yLevel + 0.05f, z2).setColor(r, g, b, a);
-                    buffer.addVertex(matrix, x1, (float) yLevel + 0.05f, z2).setColor(r, g, b, a);
+                    buffer.addVertex(matrix, x1, (float) yLevel, z1).setColor(r, g, b, a);
+                    buffer.addVertex(matrix, x2, (float) yLevel, z1).setColor(r, g, b, a);
+                    buffer.addVertex(matrix, x2, (float) yLevel, z2).setColor(r, g, b, a);
+                    buffer.addVertex(matrix, x1, (float) yLevel, z2).setColor(r, g, b, a);
                 }
             }
 
-            RenderSystem.setShader(GameRenderer::getPositionColorShader);
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            RenderSystem.disableDepthTest();
             BufferUploader.drawWithShader(buffer.buildOrThrow());
 
             buffer = tesselator.begin(VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR);
@@ -81,16 +81,16 @@ public class ChunkVisWorldRenderer {
                     float x2 = x1 + 16;
                     float z2 = z1 + 16;
 
-                    int r, g, b, a = 180;
+                    int r, g, b, a = 200;
                     if (dx == 0 && dz == 0) {
                         r = 0; g = 191; b = 255;
                     } else if (ChunkVisMod.chunkManager.isVisited(mc.level.dimension(), cx, cz)) {
-                        r = 0; g = 255; b = 0;
+                        r = 130; g = 110; b = 255;
                     } else {
-                        r = 180; g = 0; b = 0;
+                        r = 180; g = 180; b = 180;
                     }
 
-                    float y = (float) yLevel + 0.1f;
+                    float y = (float) yLevel + 0.25f;
 
                     buffer.addVertex(matrix, x1, y, z1).setColor(r, g, b, a);
                     buffer.addVertex(matrix, x2, y, z1).setColor(r, g, b, a);
@@ -107,7 +107,8 @@ public class ChunkVisWorldRenderer {
             }
 
             BufferUploader.drawWithShader(buffer.buildOrThrow());
-            RenderSystem.enableDepthTest();
+
+            RenderSystem.enableCull();
             RenderSystem.disableBlend();
 
             poseStack.popPose();

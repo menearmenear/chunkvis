@@ -7,19 +7,23 @@ import net.minecraft.world.entity.player.Player;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 
 public class ChunkVisOverlay implements HudRenderCallback {
-    private static final int GRID_RADIUS = 5;
+    private static final int DISPLAY = 176;
     private static final int PADDING = 6;
     private static final int PLAYER_SIZE = 4;
 
     private final ChunkVisMinimap minimap;
-    private int cellSize = 16;
+    private double blocksPerPixel = 1.0;
 
     public ChunkVisOverlay() {
-        this.minimap = new ChunkVisMinimap(GRID_RADIUS);
+        this.minimap = new ChunkVisMinimap();
     }
 
-    public void changeZoom(int delta) {
-        cellSize = Math.max(6, Math.min(32, cellSize + delta));
+    public void changeZoom(int dir) {
+        if (dir > 0) {
+            blocksPerPixel = Math.min(blocksPerPixel * 2, 8);
+        } else {
+            blocksPerPixel = Math.max(blocksPerPixel / 2, 0.25);
+        }
     }
 
     @Override
@@ -34,17 +38,12 @@ public class ChunkVisOverlay implements HudRenderCallback {
         double exactZ = player.getZ();
         int playerChunkX = (int) Math.floor(exactX / 16);
         int playerChunkZ = (int) Math.floor(exactZ / 16);
-        float offsetX = (float) ((exactX % 16) / 16.0);
-        float offsetZ = (float) ((exactZ % 16) / 16.0);
-        if (offsetX < 0) offsetX += 1;
-        if (offsetZ < 0) offsetZ += 1;
 
-        int gridSize = GRID_RADIUS * 2 + 1;
-        int mapSize = gridSize * cellSize;
+        int mapSize = DISPLAY;
         int startX = PADDING;
         int startY = PADDING;
 
-        minimap.scanAndRender(graphics, mc.level, exactX, exactZ, startX, startY, mapSize);
+        minimap.scanAndRender(graphics, mc.level, exactX, exactZ, startX, startY, mapSize, blocksPerPixel);
 
         graphics.fill(startX - 1, startY - 1,
             startX + mapSize + 1, startY + 1, 0xFFFFFFFF);
@@ -55,51 +54,58 @@ public class ChunkVisOverlay implements HudRenderCallback {
         graphics.fill(startX + mapSize, startY - 1,
             startX + mapSize + 1, startY + mapSize + 1, 0xFFFFFFFF);
 
-        int center = GRID_RADIUS;
+        double halfBlocks = mapSize * blocksPerPixel / 2.0;
+        int startCX = (int) Math.floor((exactX - halfBlocks) / 16);
+        int endCX = (int) Math.floor((exactX + halfBlocks) / 16);
+        int startCZ = (int) Math.floor((exactZ - halfBlocks) / 16);
+        int endCZ = (int) Math.floor((exactZ + halfBlocks) / 16);
 
-        for (int dx = -GRID_RADIUS; dx <= GRID_RADIUS; dx++) {
-            for (int dz = -GRID_RADIUS; dz <= GRID_RADIUS; dz++) {
-                int cx = playerChunkX + dx;
-                int cz = playerChunkZ + dz;
+        for (int cx = startCX; cx <= endCX; cx++) {
+            for (int cz = startCZ; cz <= endCZ; cz++) {
+                int bx1 = cx * 16;
+                int bz1 = cz * 16;
 
-                int x = startX + (dx + GRID_RADIUS) * cellSize;
-                int y = startY + (dz + GRID_RADIUS) * cellSize;
+                int x1 = startX + mapSize / 2 + (int) Math.round((bx1 - exactX) / blocksPerPixel);
+                int z1 = startY + mapSize / 2 + (int) Math.round((bz1 - exactZ) / blocksPerPixel);
+                int cellW = (int) Math.round(16.0 / blocksPerPixel);
+                if (cellW < 2) cellW = 2;
 
                 boolean visited = ChunkVisMod.chunkManager.isVisited(mc.level.dimension(), cx, cz);
 
                 if (visited) {
-                    graphics.fill(x + 1, y + 1, x + cellSize - 1, y + cellSize - 1, 0x551A6B1A);
-                    graphics.fill(x + 1, y + 1, x + cellSize - 1, y + 2, 0xCC33AA33);
-                    graphics.fill(x + 1, y + cellSize - 2, x + cellSize - 1, y + cellSize - 1, 0xCC33AA33);
-                    graphics.fill(x + 1, y + 1, x + 2, y + cellSize - 1, 0xCC33AA33);
-                    graphics.fill(x + cellSize - 2, y + 1, x + cellSize - 1, y + cellSize - 1, 0xCC33AA33);
+                    graphics.fill(x1, z1, x1 + cellW, z1 + cellW, 0x554466DD);
+                    graphics.fill(x1, z1, x1 + cellW, z1 + 1, 0xCC6688FF);
+                    graphics.fill(x1, z1 + cellW - 1, x1 + cellW, z1 + cellW, 0xCC6688FF);
+                    graphics.fill(x1, z1, x1 + 1, z1 + cellW, 0xCC6688FF);
+                    graphics.fill(x1 + cellW - 1, z1, x1 + cellW, z1 + cellW, 0xCC6688FF);
                 } else {
-                    graphics.fill(x + 1, y + 1, x + cellSize - 1, y + cellSize - 1, 0x33000000);
-                    graphics.fill(x + 1, y + 1, x + cellSize - 1, y + 2, 0x88555555);
-                    graphics.fill(x + 1, y + cellSize - 2, x + cellSize - 1, y + cellSize - 1, 0x88555555);
-                    graphics.fill(x + 1, y + 1, x + 2, y + cellSize - 1, 0x88555555);
-                    graphics.fill(x + cellSize - 2, y + 1, x + cellSize - 1, y + cellSize - 1, 0x88555555);
+                    graphics.fill(x1, z1, x1 + cellW, z1 + cellW, 0x33000000);
+                    graphics.fill(x1, z1, x1 + cellW, z1 + 1, 0x88555555);
+                    graphics.fill(x1, z1 + cellW - 1, x1 + cellW, z1 + cellW, 0x88555555);
+                    graphics.fill(x1, z1, x1 + 1, z1 + cellW, 0x88555555);
+                    graphics.fill(x1 + cellW - 1, z1, x1 + cellW, z1 + cellW, 0x88555555);
                 }
             }
         }
 
-        int playerPixelX = startX + (int) (center * cellSize + offsetX * cellSize);
-        int playerPixelZ = startY + (int) (center * cellSize + offsetZ * cellSize);
+        int cx = startX + mapSize / 2;
+        int cz = startY + mapSize / 2;
 
-        graphics.fill(playerPixelX - PLAYER_SIZE, playerPixelZ - PLAYER_SIZE,
-            playerPixelX + PLAYER_SIZE, playerPixelZ + PLAYER_SIZE, 0xFF00BFFF);
-        graphics.fill(playerPixelX - PLAYER_SIZE + 1, playerPixelZ - PLAYER_SIZE + 1,
-            playerPixelX + PLAYER_SIZE - 1, playerPixelZ + PLAYER_SIZE - 1, 0xFF55DDFF);
+        graphics.fill(cx - PLAYER_SIZE, cz - PLAYER_SIZE,
+            cx + PLAYER_SIZE, cz + PLAYER_SIZE, 0xFF00BFFF);
+        graphics.fill(cx - PLAYER_SIZE + 1, cz - PLAYER_SIZE + 1,
+            cx + PLAYER_SIZE - 1, cz + PLAYER_SIZE - 1, 0xFF55DDFF);
 
         float yawRad = (float) Math.toRadians(player.getYRot());
         float dirX = -(float) Math.sin(yawRad) * 5;
         float dirZ = -(float) Math.cos(yawRad) * 5;
-        graphics.fill(playerPixelX + (int) dirX - 1, playerPixelZ + (int) dirZ - 1,
-            playerPixelX + (int) dirX + 1, playerPixelZ + (int) dirZ + 1, 0xFFFFFFAA);
+        graphics.fill(cx + (int) dirX - 1, cz + (int) dirZ - 1,
+            cx + (int) dirX + 1, cz + (int) dirZ + 1, 0xFFFFFFAA);
 
-        String info = String.format("Visited: %d | [U] %s",
+        String info = String.format("Visited: %d | [U] %s | Zoom: %.1f",
             ChunkVisMod.chunkManager.getVisitedCount(mc.level.dimension()),
-            ChunkVisMod.tracking ? "ON" : "OFF");
+            ChunkVisMod.tracking ? "ON" : "OFF",
+            1.0 / blocksPerPixel);
         graphics.drawString(mc.font, info, PADDING, startY + mapSize + PADDING, 0xFFCCCCCC);
     }
 }

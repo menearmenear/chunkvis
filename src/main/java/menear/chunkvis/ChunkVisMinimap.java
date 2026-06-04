@@ -13,9 +13,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.MapColor;
 
 public class ChunkVisMinimap {
-    private static final int PIXELS_PER_CHUNK = 16;
-    private final int textureSize;
-    private final int chunks;
+    private int texPixels = -1;
+    private int lastBpTex = -1;
     private DynamicTexture texture;
     private NativeImage image;
     private ResourceLocation textureId;
@@ -23,17 +22,15 @@ public class ChunkVisMinimap {
     private int lastChunkZ = Integer.MIN_VALUE;
     private boolean initialized = false;
 
-    public ChunkVisMinimap(int gridRadius) {
-        this.chunks = gridRadius * 2 + 1;
-        this.textureSize = chunks * PIXELS_PER_CHUNK;
-    }
-
-    private void ensureTexture() {
-        if (initialized) return;
-        image = new NativeImage(textureSize, textureSize, false);
+    private void ensureTexture(int newTexPixels) {
+        if (initialized && texPixels == newTexPixels) return;
+        if (image != null) image.close();
+        texPixels = newTexPixels;
+        image = new NativeImage(texPixels, texPixels, false);
         texture = new DynamicTexture(image);
         Minecraft mc = Minecraft.getInstance();
         TextureManager tm = mc.getTextureManager();
+        if (textureId != null) tm.release(textureId);
         textureId = tm.register("chunkvis/minimap", texture);
         initialized = true;
     }
@@ -41,69 +38,70 @@ public class ChunkVisMinimap {
     public void scanAndRender(GuiGraphics graphics, Level level,
                               double playerX, double playerZ,
                               int screenX, int screenY,
-                              int displaySize) {
-        ensureTexture();
-
+                              int mapSize, double bpp) {
         int pcx = (int) Math.floor(playerX / 16);
         int pcz = (int) Math.floor(playerZ / 16);
 
-        if (pcx != lastChunkX || pcz != lastChunkZ) {
-            scan(level, pcx, pcz);
+        int nTex, bpTex;
+        if (bpp >= 1) {
+            nTex = mapSize;
+            bpTex = (int) bpp;
+        } else {
+            nTex = (int) Math.ceil(mapSize * bpp);
+            if (nTex < 1) nTex = 1;
+            bpTex = 1;
+        }
+
+        ensureTexture(nTex);
+
+        if (pcx != lastChunkX || pcz != lastChunkZ || bpTex != lastBpTex || nTex != texPixels) {
+            scan(level, pcx, pcz, nTex, bpTex);
             lastChunkX = pcx;
             lastChunkZ = pcz;
+            lastBpTex = bpTex;
         }
 
-        graphics.blit(textureId, screenX, screenY, displaySize, displaySize,
-            0, 0, textureSize, textureSize, textureSize, textureSize);
+        graphics.blit(textureId, screenX, screenY, mapSize, mapSize,
+            0, 0, nTex, nTex, nTex, nTex);
     }
 
-    private void scan(Level level, int pcx, int pcz) {
-        int radius = chunks / 2;
+    private void scan(Level level, int pcx, int pcz, int nTex, int bpTex) {
+        for (int px = 0; px < nTex; px++) {
+            for (int pz = 0; pz < nTex; pz++) {
+                double cx = pcx * 16 + 8 + (px - nTex / 2.0) * bpTex;
+                double cz = pcz * 16 + 8 + (pz - nTex / 2.0) * bpTex;
 
-        for (int px = 0; px < textureSize; px++) {
-            for (int pz = 0; pz < textureSize; pz++) {
-                int cx = pcx - radius + px / PIXELS_PER_CHUNK;
-                int cz = pcz - radius + pz / PIXELS_PER_CHUNK;
-
-                if (!level.hasChunk(cx, cz)) {
+                int totalR = 0, totalG = 0, totalB = 0, count = 0;
+                int startWX = (int) Math.floor(cx);
+                int startWZ = (int) Math.floor(cz);
+                for (int dx = 0; dx < bpTex; dx++) {
+                    for (int dz = 0; dz < bpTex; dz++) {
+                        int wx = startWX + dx;
+                        int wz = startWZ + dz;
+                        if (!level.hasChunk(wx >> 4, wz >> 4)) continue;
+                        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, wx, wz) - 1;
+                        if (y < level.getMinBuildHeight()) continue;
+                        BlockPos pos = new BlockPos(wx, y, wz);
+                        BlockState state = level.getBlockState(pos);
+                        MapColor mc = state.getMapColor(level, pos);
+                        if (mc == null) continue;
+                        int col = mc.col;
+                        totalR += (col >> 16) & 0xFF;
+                        totalG += (col >> 8) & 0xFF;
+                        totalB += col & 0xFF;
+                        count++;
+                    }
+                }
+                if (count == 0) {
                     image.setPixelRGBA(px, pz, 0xFF111111);
-                    continue;
+                } else {
+                    image.setPixelRGBA(px, pz, 0xFF000000
+                        | ((totalB / count) << 16)
+                        | ((totalG / count) << 8)
+                        | (totalR / count));
                 }
-
-                int wx = cx * 16 + (px % PIXELS_PER_CHUNK);
-                int wz = cz * 16 + (pz % PIXELS_PER_CHUNK);
-
-                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, wx, wz) - 1;
-                if (y < level.getMinBuildHeight()) {
-                    image.setPixelRGBA(px, pz, 0xFF222222);
-                    continue;
-                }
-
-                BlockPos pos = new BlockPos(wx, y, wz);
-                BlockState state = level.getBlockState(pos);
-                MapColor mc = state.getMapColor(level, pos);
-                if (mc == null) {
-                    image.setPixelRGBA(px, pz, 0xFF222222);
-                    continue;
-                }
-
-                int col = mc.col;
-                int r = (col >> 16) & 0xFF;
-                int g = (col >> 8) & 0xFF;
-                int b = col & 0xFF;
-                int abgr = 0xFF000000 | (b << 16) | (g << 8) | r;
-                image.setPixelRGBA(px, pz, abgr);
             }
         }
-
         texture.upload();
-    }
-
-    public int getChunks() {
-        return chunks;
-    }
-
-    public int getTextureSize() {
-        return textureSize;
     }
 }
