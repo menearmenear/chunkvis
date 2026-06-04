@@ -8,29 +8,34 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 public class ChunkVisMod implements ClientModInitializer {
     public static final VisitedChunkManager chunkManager = new VisitedChunkManager();
+    static ChunkVisOverlay overlay;
     public static boolean overlayVisible = false;
     public static boolean tracking = false;
     private static KeyMapping toggleKey;
     private static KeyMapping mapKey;
+    private static KeyMapping zoomInKey;
+    private static KeyMapping zoomOutKey;
 
     @Override
     public void onInitializeClient() {
         toggleKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-            "key.chunkvis.toggle",
-            GLFW.GLFW_KEY_U,
-            "category.chunkvis"
+            "key.chunkvis.toggle", GLFW.GLFW_KEY_U, "category.chunkvis"
+        ));
+        mapKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+            "key.chunkvis.map", GLFW.GLFW_KEY_M, "category.chunkvis"
+        ));
+        zoomInKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+            "key.chunkvis.zoomin", GLFW.GLFW_KEY_EQUAL, "category.chunkvis"
+        ));
+        zoomOutKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+            "key.chunkvis.zoomout", GLFW.GLFW_KEY_MINUS, "category.chunkvis"
         ));
 
-        mapKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-            "key.chunkvis.map",
-            GLFW.GLFW_KEY_M,
-            "category.chunkvis"
-        ));
+        overlay = new ChunkVisOverlay();
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.level == null) return;
@@ -51,6 +56,13 @@ public class ChunkVisMod implements ClientModInitializer {
                 }
             }
 
+            while (zoomInKey.consumeClick()) {
+                overlay.changeZoom(2);
+            }
+            while (zoomOutKey.consumeClick()) {
+                overlay.changeZoom(-2);
+            }
+
             if (tracking) {
                 int cx = (int) Math.floor(client.player.getX() / 16);
                 int cz = (int) Math.floor(client.player.getZ() / 16);
@@ -60,9 +72,7 @@ public class ChunkVisMod implements ClientModInitializer {
 
         ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
             if (tracking) {
-                int cx = chunk.getPos().x;
-                int cz = chunk.getPos().z;
-                chunkManager.visitChunk(world.dimension(), cx, cz);
+                chunkManager.visitChunk(world.dimension(), chunk.getPos().x, chunk.getPos().z);
             }
         });
 
@@ -76,7 +86,7 @@ public class ChunkVisMod implements ClientModInitializer {
             chunkManager.save();
         });
 
-        HudRenderCallback.EVENT.register(new ChunkVisOverlay());
+        HudRenderCallback.EVENT.register(overlay);
         ChunkVisWorldRenderer.register();
     }
 }

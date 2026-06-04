@@ -3,6 +3,8 @@
         "en_us": {
             "key.chunkvis.toggle": "Toggle ChunkVis Overlay",
             "key.chunkvis.map": "Open ChunkVis Map",
+            "key.chunkvis.zoomin": "Zoom In (+)",
+            "key.chunkvis.zoomout": "Zoom Out (-)",
             "category.chunkvis": "ChunkVis"
         }
     }

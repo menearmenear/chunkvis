@@ -8,14 +8,18 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 
 public class ChunkVisOverlay implements HudRenderCallback {
     private static final int GRID_RADIUS = 5;
-    private static final int CELL_SIZE = 14;
     private static final int PADDING = 6;
     private static final int PLAYER_SIZE = 4;
 
     private final ChunkVisMinimap minimap;
+    private int cellSize = 16;
 
     public ChunkVisOverlay() {
         this.minimap = new ChunkVisMinimap(GRID_RADIUS);
+    }
+
+    public void changeZoom(int delta) {
+        cellSize = Math.max(6, Math.min(32, cellSize + delta));
     }
 
     @Override
@@ -36,11 +40,11 @@ public class ChunkVisOverlay implements HudRenderCallback {
         if (offsetZ < 0) offsetZ += 1;
 
         int gridSize = GRID_RADIUS * 2 + 1;
-        int mapSize = gridSize * CELL_SIZE;
+        int mapSize = gridSize * cellSize;
         int startX = PADDING;
         int startY = PADDING;
 
-        minimap.scanAndRender(graphics, mc.level, exactX, exactZ, startX, startY, mapSize, CELL_SIZE);
+        minimap.scanAndRender(graphics, mc.level, exactX, exactZ, startX, startY, mapSize);
 
         graphics.fill(startX - 1, startY - 1,
             startX + mapSize + 1, startY + 1, 0xFFFFFFFF);
@@ -58,29 +62,29 @@ public class ChunkVisOverlay implements HudRenderCallback {
                 int cx = playerChunkX + dx;
                 int cz = playerChunkZ + dz;
 
-                int x = startX + (dx + GRID_RADIUS) * CELL_SIZE;
-                int y = startY + (dz + GRID_RADIUS) * CELL_SIZE;
+                int x = startX + (dx + GRID_RADIUS) * cellSize;
+                int y = startY + (dz + GRID_RADIUS) * cellSize;
 
                 boolean visited = ChunkVisMod.chunkManager.isVisited(mc.level.dimension(), cx, cz);
 
                 if (visited) {
-                    graphics.fill(x + 1, y + 1, x + CELL_SIZE - 1, y + CELL_SIZE - 1, 0x551A6B1A);
-                    graphics.fill(x + 1, y + 1, x + CELL_SIZE - 1, y + 2, 0xCC33AA33);
-                    graphics.fill(x + 1, y + CELL_SIZE - 2, x + CELL_SIZE - 1, y + CELL_SIZE - 1, 0xCC33AA33);
-                    graphics.fill(x + 1, y + 1, x + 2, y + CELL_SIZE - 1, 0xCC33AA33);
-                    graphics.fill(x + CELL_SIZE - 2, y + 1, x + CELL_SIZE - 1, y + CELL_SIZE - 1, 0xCC33AA33);
+                    graphics.fill(x + 1, y + 1, x + cellSize - 1, y + cellSize - 1, 0x551A6B1A);
+                    graphics.fill(x + 1, y + 1, x + cellSize - 1, y + 2, 0xCC33AA33);
+                    graphics.fill(x + 1, y + cellSize - 2, x + cellSize - 1, y + cellSize - 1, 0xCC33AA33);
+                    graphics.fill(x + 1, y + 1, x + 2, y + cellSize - 1, 0xCC33AA33);
+                    graphics.fill(x + cellSize - 2, y + 1, x + cellSize - 1, y + cellSize - 1, 0xCC33AA33);
                 } else {
-                    graphics.fill(x + 1, y + 1, x + CELL_SIZE - 1, y + CELL_SIZE - 1, 0x33000000);
-                    graphics.fill(x + 1, y + 1, x + CELL_SIZE - 1, y + 2, 0x88555555);
-                    graphics.fill(x + 1, y + CELL_SIZE - 2, x + CELL_SIZE - 1, y + CELL_SIZE - 1, 0x88555555);
-                    graphics.fill(x + 1, y + 1, x + 2, y + CELL_SIZE - 1, 0x88555555);
-                    graphics.fill(x + CELL_SIZE - 2, y + 1, x + CELL_SIZE - 1, y + CELL_SIZE - 1, 0x88555555);
+                    graphics.fill(x + 1, y + 1, x + cellSize - 1, y + cellSize - 1, 0x33000000);
+                    graphics.fill(x + 1, y + 1, x + cellSize - 1, y + 2, 0x88555555);
+                    graphics.fill(x + 1, y + cellSize - 2, x + cellSize - 1, y + cellSize - 1, 0x88555555);
+                    graphics.fill(x + 1, y + 1, x + 2, y + cellSize - 1, 0x88555555);
+                    graphics.fill(x + cellSize - 2, y + 1, x + cellSize - 1, y + cellSize - 1, 0x88555555);
                 }
             }
         }
 
-        int playerPixelX = startX + (int) (center * CELL_SIZE + offsetX * CELL_SIZE);
-        int playerPixelZ = startY + (int) (center * CELL_SIZE + offsetZ * CELL_SIZE);
+        int playerPixelX = startX + (int) (center * cellSize + offsetX * cellSize);
+        int playerPixelZ = startY + (int) (center * cellSize + offsetZ * cellSize);
 
         graphics.fill(playerPixelX - PLAYER_SIZE, playerPixelZ - PLAYER_SIZE,
             playerPixelX + PLAYER_SIZE, playerPixelZ + PLAYER_SIZE, 0xFF00BFFF);
